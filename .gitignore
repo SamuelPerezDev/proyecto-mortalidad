@@ -1,0 +1,37 @@
+
+# Entornos virtuales de Python
+.venv/
+venv/
+env/
+
+# Caché y archivos compilados de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Cachés y configuración local de herramientas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Variables de entorno y credenciales
+.env
+.env.*
+!.env.example
+
+# Datos locales: no subir automáticamente a GitHub
+data/raw/*
+data/interim/*
+data/processed/*
+
+# Mantener los archivos de estructura de los directorios
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+
+# Archivos temporales y del sistema
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
