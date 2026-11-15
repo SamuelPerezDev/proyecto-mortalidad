@@ -1,10 +1,20 @@
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import (
+    FastAPI,
+    UploadFile,
+    File,
+    HTTPException,
+    Depends
+)
+
 from pathlib import Path
 import csv
 import io
 import os
 import tempfile
+
+# Autenticación con Keycloak
+from src.auth import requiere_admin
 
 
 # ==========================================
@@ -13,8 +23,15 @@ import tempfile
 
 app = FastAPI(
     title="API Proyecto Mortalidad",
-    description="API para la carga y análisis de datos de mortalidad",
-    version="1.0.0"
+    description=(
+        "API para la carga y análisis de datos "
+        "de mortalidad con autenticación Keycloak"
+    ),
+    version="1.0.0",
+    swagger_ui_init_oauth={
+        "clientId": "mortalidad-api",
+        "usePkceWithAuthorizationCodeGrant": True
+    }
 )
 
 
@@ -23,6 +40,7 @@ app = FastAPI(
 # ==========================================
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
 RAW_DIR = BASE_DIR / "data" / "raw"
 
 RAW_DIR.mkdir(parents=True, exist_ok=True)
@@ -38,7 +56,10 @@ MAX_FILE_SIZE = 20 * 1024 * 1024
 @app.get("/")
 def inicio():
     return {
-        "mensaje": "API Proyecto Mortalidad funcionando correctamente"
+        "mensaje": (
+            "API Proyecto Mortalidad "
+            "funcionando correctamente"
+        )
     }
 
 
@@ -56,10 +77,14 @@ def health():
 
 # ==========================================
 # CARGA DE DATASETS CSV
+# PROTEGIDA CON KEYCLOAK
 # ==========================================
 
 @app.post("/datasets/upload")
-async def cargar_dataset(file: UploadFile = File(...)):
+async def cargar_dataset(
+    file: UploadFile = File(...),
+    usuario: dict = Depends(requiere_admin)
+):
 
     # 1. Verificar extensión del archivo
     if not file.filename:
