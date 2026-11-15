@@ -22,5 +22,5 @@ RIPS_COLUMNS = [
     "NumeroAtenciones"
 ]
 
-DANE_FILE = "dane_defunciones_no_fetales_2021.csv"
-RIPS_FILE = "rips_2021.csv"
+DANE_FILE = "dane_no_fetal_2021_limpio.csv"
+RIPS_FILE = "rips_2021_limpio.csv"
