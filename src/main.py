@@ -14,7 +14,19 @@ import os
 import tempfile
 
 # Autenticación con Keycloak
-from src.auth import requiere_admin
+from src.auth import requiere_admin, verificar_token
+
+# Módulo EDA
+from src.eda import (
+    cargar_eda_stats,
+    generar_eda,
+    regenerar_eda,
+    invalidar_eda,
+    obtener_estado_eda,
+    encontrar_archivo_raw,
+    DANE_RAW_PATTERN,
+    RIPS_RAW_PATTERN
+)
 
 
 # ==========================================
@@ -198,7 +210,14 @@ async def cargar_dataset(
 
         await file.close()
 
-    # 6. Respuesta de la API
+    # 6. Invalidar estadísticas EDA si el archivo corresponde a un dataset conocido
+    nombre_lower = nombre.lower()
+    if DANE_RAW_PATTERN.lower() in nombre_lower:
+        invalidar_eda("DANE")
+    elif RIPS_RAW_PATTERN.lower() in nombre_lower:
+        invalidar_eda("RIPS")
+
+    # 7. Respuesta de la API
     return {
         "mensaje": "Dataset CSV cargado correctamente",
         "archivo": nombre,
@@ -207,3 +226,112 @@ async def cargar_dataset(
         "ubicacion": f"data/raw/{nombre}",
         "estado": "cargado"
     }
+
+
+# ==========================================
+# ENDPOINTS EDA
+# ==========================================
+
+
+@app.get("/eda/status")
+def eda_status(
+    usuario: dict = Depends(verificar_token)
+):
+    """Devuelve el estado del EDA para DANE y RIPS."""
+    try:
+        estado = obtener_estado_eda()
+        return estado
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener el estado del EDA: {error}"
+        )
+
+
+@app.get("/eda/dane")
+def eda_dane(
+    usuario: dict = Depends(verificar_token)
+):
+    """Devuelve las estadísticas EDA de DANE si están vigentes."""
+    stats = cargar_eda_stats("DANE")
+    if stats is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Las estadísticas EDA de DANE no están disponibles."
+        )
+
+    # Verificar vigencia
+    archivo_raw = encontrar_archivo_raw(DANE_RAW_PATTERN)
+    if archivo_raw is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró el archivo RAW de DANE."
+        )
+
+    from src.eda import obtener_archivo_hash
+    hash_actual = obtener_archivo_hash(archivo_raw)
+    hash_guardado = stats.get("archivo_hash")
+
+    if hash_actual != hash_guardado:
+        raise HTTPException(
+            status_code=404,
+            detail="Las estadísticas EDA de DANE están desactualizadas. Use POST /eda/regenerate para actualizarlas."
+        )
+
+    # Quitar metadatos internos antes de devolver
+    stats_publica = {k: v for k, v in stats.items() if k not in ("archivo_hash", "archivo_nombre")}
+    return stats_publica
+
+
+@app.get("/eda/rips")
+def eda_rips(
+    usuario: dict = Depends(verificar_token)
+):
+    """Devuelve las estadísticas EDA de RIPS si están vigentes."""
+    stats = cargar_eda_stats("RIPS")
+    if stats is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Las estadísticas EDA de RIPS no están disponibles."
+        )
+
+    # Verificar vigencia
+    archivo_raw = encontrar_archivo_raw(RIPS_RAW_PATTERN)
+    if archivo_raw is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró el archivo RAW de RIPS."
+        )
+
+    from src.eda import obtener_archivo_hash
+    hash_actual = obtener_archivo_hash(archivo_raw)
+    hash_guardado = stats.get("archivo_hash")
+
+    if hash_actual != hash_guardado:
+        raise HTTPException(
+            status_code=404,
+            detail="Las estadísticas EDA de RIPS están desactualizadas. Use POST /eda/regenerate para actualizarlas."
+        )
+
+    # Quitar metadatos internos antes de devolver
+    stats_publica = {k: v for k, v in stats.items() if k not in ("archivo_hash", "archivo_nombre")}
+    return stats_publica
+
+
+@app.post("/eda/regenerate")
+def eda_regenerate(
+    usuario: dict = Depends(requiere_admin)
+):
+    """Regenera las estadísticas EDA para DANE y RIPS. Requiere rol admin."""
+    try:
+        resultados = regenerar_eda()
+        return {
+            "mensaje": "Regeneración de estadísticas EDA completada",
+            "dane": resultados.get("dane", {}),
+            "rips": resultados.get("rips", {})
+        }
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al regenerar las estadísticas EDA: {error}"
+        )
