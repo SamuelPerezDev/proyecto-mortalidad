@@ -28,6 +28,12 @@ from src.eda import (
     RIPS_RAW_PATTERN
 )
 
+# Módulo Procesamiento
+from src.processing import (
+    ejecutar_procesamiento,
+    verificar_vigencia_procesamiento,
+)
+
 
 # ==========================================
 # CONFIGURACIÓN INICIAL DE FASTAPI
@@ -334,4 +340,80 @@ def eda_regenerate(
         raise HTTPException(
             status_code=500,
             detail=f"Error al regenerar las estadísticas EDA: {error}"
+        )
+
+
+# ==========================================
+# ENDPOINTS DE PROCESAMIENTO
+# ==========================================
+
+
+@app.get("/processing/status")
+def processing_status(
+    usuario: dict = Depends(verificar_token)
+):
+    """Devuelve el estado del dataset procesado."""
+    try:
+        estado = verificar_vigencia_procesamiento()
+        return estado
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener el estado del procesamiento: {error}"
+        )
+
+
+@app.post("/processing/run")
+def processing_run(
+    usuario: dict = Depends(requiere_admin)
+):
+    """Ejecuta el procesamiento de datos DANE y RIPS. Requiere rol admin.
+
+    Solo una ejecución puede estar activa a la vez. Las solicitudes
+    concurrentes se rechazan con HTTP 409.
+    """
+    try:
+        resultado = ejecutar_procesamiento()
+
+        if resultado["estado"] == "error":
+            errores = resultado["errores"]
+            # Detectar ejecución concurrente
+            if any("activa" in e.lower() for e in errores):
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "mensaje": "Ya hay una ejecución de procesamiento activa.",
+                        "errores": errores,
+                    }
+                )
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "mensaje": "El procesamiento falló.",
+                    "errores": errores,
+                    "advertencias": resultado.get("advertencias", [])
+                }
+            )
+
+        anio = resultado["estadisticas"].get("anio", "desconocido")
+        observaciones = resultado["estadisticas"].get(
+            "observaciones_finales", 0
+        )
+
+        return {
+            "mensaje": (
+                f"Dataset generado correctamente. "
+                f"Año de los datos: {anio}."
+            ),
+            "observaciones": observaciones,
+            "estadisticas": resultado["estadisticas"],
+            "advertencias": resultado.get("advertencias", [])
+        }
+
+    except HTTPException:
+        raise
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error inesperado durante el procesamiento: {error}"
         )
