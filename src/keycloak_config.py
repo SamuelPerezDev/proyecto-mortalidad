@@ -1,4 +1,6 @@
 
+import os
+
 # Configuración de Keycloak
 
 KEYCLOAK_URL = "http://localhost:8080"
@@ -15,3 +17,16 @@ JWKS_URL = (
 
 # Emisor esperado de los tokens
 ISSUER = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}"
+
+# ==========================================
+# CONTROL DE AUTENTICACIÓN
+# ==========================================
+# Cuando AUTH_ENABLED=false, los endpoints protegidos
+# funcionan sin validar token Keycloak.
+# Por defecto: true (autenticación activada).
+# Solo desactivar en entorno de desarrollo/pruebas.
+AUTH_ENABLED = os.environ.get("AUTH_ENABLED", "true").lower() in (
+    "true",
+    "1",
+    "yes"
+)

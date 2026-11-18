@@ -68,8 +68,20 @@ def _safe_dict(d):
 # LECTURA DE CSV DESDE RAW
 # ==========================================
 
-def leer_csv_raw(ruta):
-    """Lee un CSV desde data/raw/ sin modificar los datos."""
+def leer_csv_raw(ruta, encoding=None):
+    """
+    Lee un CSV desde data/raw/ sin modificar los datos.
+
+    Si *encoding* se proporciona, se usa directamente.
+    Si es None, intenta UTF-8 y cae a Latin-1 como fallback.
+    """
+    if encoding is not None:
+        return pd.read_csv(
+            ruta,
+            dtype=str,
+            keep_default_na=False,
+            encoding=encoding
+        )
     try:
         return pd.read_csv(
             ruta,
@@ -618,12 +630,14 @@ def generar_eda(dataset):
     Lee desde data/raw/, calcula estadísticas y guarda en reports/.
     Devuelve un diccionario con el resultado de la operación.
     """
+    encoding_csv = None
     if dataset == "DANE":
         patron = DANE_RAW_PATTERN
         generador = generar_eda_dane
     elif dataset == "RIPS":
         patron = RIPS_RAW_PATTERN
         generador = generar_eda_rips
+        encoding_csv = "utf-8"
     else:
         return {
             "estado": "error",
@@ -640,7 +654,7 @@ def generar_eda(dataset):
 
     try:
         # Leer CSV sin modificar
-        df = leer_csv_raw(archivo_raw)
+        df = leer_csv_raw(archivo_raw, encoding=encoding_csv)
 
         # Calcular hash del archivo para vigencia
         archivo_hash = obtener_archivo_hash(archivo_raw)

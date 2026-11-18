@@ -1,4 +1,6 @@
 
+# -*- coding: utf-8 -*-
+
 """
 Procesamiento, homologación e integración de datos DANE y RIPS.
 
@@ -1574,7 +1576,8 @@ def _ejecutar_procesamiento_interno():
 
     try:
         df_rips = leer_csv_raw(
-            archivo_rips
+            archivo_rips,
+            encoding="utf-8"
         )
 
     except Exception as error:
@@ -1617,7 +1620,7 @@ def _ejecutar_procesamiento_interno():
     anio_rips, errores_anio_rips = (
         detectar_anio(
             df_rips,
-            "Año",
+            "A\u00f1o",
             "RIPS"
         )
     )

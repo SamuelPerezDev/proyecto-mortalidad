@@ -7,6 +7,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2AuthorizationCodeBearer
 
 from src.keycloak_config import (
+    AUTH_ENABLED,
     JWKS_URL,
     ISSUER,
     KEYCLOAK_CLIENT_ID
@@ -38,12 +39,28 @@ jwks_client = PyJWKClient(JWKS_URL)
 
 
 # ==========================================
-# VALIDAR TOKEN JWT
+# USUARIO DE PRUEBA (sin autenticación)
+# ==========================================
+# Se usa solo cuando AUTH_ENABLED=false.
+# No altera la lógica de producción.
+
+_USUARIO_PRUEBA = {
+    "sub": "test-user",
+    "preferred_username": "test-user",
+    "realm_access": {
+        "roles": ["admin"]
+    }
+}
+
+
+# ==========================================
+# VALIDAR TOKEN JWT (con soporte AUTH_ENABLED)
 # ==========================================
 
-def verificar_token(
+def _verificar_token_keycloak(
     token: str = Depends(security)
 ):
+    """Valida el token JWT contra Keycloak."""
     try:
         # Obtener clave pública correspondiente al token
         signing_key = jwks_client.get_signing_key_from_jwt(
@@ -79,13 +96,25 @@ def verificar_token(
         )
 
 
+def verificar_token():
+    """
+    Dependencia FastAPI que valida el token si AUTH_ENABLED=true.
+    Si AUTH_ENABLED=false, devuelve un contexto de prueba sin
+    requerir token.
+    """
+    if not AUTH_ENABLED:
+        return _USUARIO_PRUEBA
+    return _verificar_token_keycloak()
+
+
 # ==========================================
-# VERIFICAR ROL ADMINISTRADOR
+# VERIFICAR ROL ADMINISTRADOR (con soporte AUTH_ENABLED)
 # ==========================================
 
-def requiere_admin(
-    usuario: dict = Depends(verificar_token)
+def _requiere_admin_keycloak(
+    usuario: dict = Depends(_verificar_token_keycloak)
 ):
+    """Verifica rol admin con Keycloak activo."""
     roles = usuario.get(
         "realm_access", {}
     ).get("roles", [])
@@ -97,3 +126,13 @@ def requiere_admin(
         )
 
     return usuario
+
+
+def requiere_admin():
+    """
+    Dependencia FastAPI que verifica rol admin si AUTH_ENABLED=true.
+    Si AUTH_ENABLED=false, devuelve el usuario de prueba con rol admin.
+    """
+    if not AUTH_ENABLED:
+        return _USUARIO_PRUEBA
+    return _requiere_admin_keycloak()
