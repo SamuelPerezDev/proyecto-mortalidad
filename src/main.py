@@ -48,6 +48,9 @@ from src.predictions import (
     listar_municipios,
     consultar_municipio,
     comparar_municipios,
+    resumen_municipio,
+    resumen_todos_municipios,
+    comparar_resumen_municipios,
 )
 
 # Módulo Procesamiento
@@ -1423,6 +1426,57 @@ def obtener_comparacion_municipios(codigos: str):
 
     try:
         return comparar_municipios(lista_codigos)
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error)
+        )
+
+
+# ============================================================
+# PREDICCIONES AGREGADAS POR MUNICIPIO - ACCESO COMO INVITADO
+# ============================================================
+
+@app.get(
+    "/predictions/resumen-municipio/{codigo}",
+    tags=["Predicciones públicas"]
+)
+def obtener_resumen_municipio(codigo: str):
+
+    resultado = resumen_municipio(codigo)
+
+    if not resultado["encontrado"]:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró el municipio solicitado."
+        )
+
+    return resultado
+
+
+@app.get(
+    "/predictions/resumen-todos",
+    tags=["Predicciones públicas"]
+)
+def obtener_resumen_todos_municipios():
+    return resumen_todos_municipios()
+
+
+@app.get(
+    "/predictions/comparar-resumen",
+    tags=["Predicciones públicas"]
+)
+def obtener_comparacion_resumen(codigos: str):
+
+    lista_codigos = [
+        codigo.strip()
+        for codigo in codigos.split(",")
+        if codigo.strip()
+    ]
+
+    try:
+        return comparar_resumen_municipios(lista_codigos)
 
     except ValueError as error:
         raise HTTPException(

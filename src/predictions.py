@@ -375,3 +375,191 @@ def comparar_municipios(codigos):
         "total_municipios": len(comparacion),
         "municipios": comparacion,
     }
+
+
+# ============================================================
+# 9. RESUMEN AGREGADO POR MUNICIPIO
+# ============================================================
+
+def resumen_municipio(codigo):
+    """
+    Calcula un resumen agregado de un municipio,
+    promediando las predicciones y valores observados
+    de todos sus diagnósticos.
+
+    Devuelve un solo valor por municipio en lugar
+    de resultados por diagnóstico.
+    """
+
+    codigo = str(codigo).strip().zfill(5)
+
+    dataset = generar_predicciones()
+
+    municipio = dataset[
+        dataset["cod_municipio"] == codigo
+    ].copy()
+
+    if municipio.empty:
+        return {
+            "codigo_municipio": codigo,
+            "encontrado": False,
+            "modelo_utilizado": obtener_modelo_seleccionado(),
+            "promedio_predicho": None,
+            "promedio_observado": None,
+            "total_diagnosticos": 0,
+        }
+
+    filas_validas = municipio.dropna(subset=["prediccion"])
+
+    if filas_validas.empty:
+        return {
+            "codigo_municipio": codigo,
+            "encontrado": True,
+            "modelo_utilizado": obtener_modelo_seleccionado(),
+            "promedio_predicho": None,
+            "promedio_observado": None,
+            "total_diagnosticos": 0,
+        }
+
+    promedio_predicho = filas_validas["prediccion"].mean()
+    promedio_observado = filas_validas[VARIABLE_OBJETIVO].mean()
+    total_diagnosticos = len(filas_validas)
+
+    return {
+        "codigo_municipio": codigo,
+        "encontrado": True,
+        "modelo_utilizado": obtener_modelo_seleccionado(),
+        "promedio_predicho": round(float(promedio_predicho), 4),
+        "promedio_observado": round(float(promedio_observado), 4),
+        "total_diagnosticos": total_diagnosticos,
+    }
+
+
+# ============================================================
+# 10. RESUMEN AGREGADO DE TODOS LOS MUNICIPIOS
+# ============================================================
+
+def resumen_todos_municipios():
+    """
+    Calcula un resumen agregado de todos los municipios,
+    promediando las predicciones y valores observados
+    por cada municipio.
+
+    Devuelve una lista de municipios con sus valores
+    agregados para cargar el mapa completo.
+    """
+
+    dataset = generar_predicciones()
+
+    filas_validas = dataset.dropna(subset=["prediccion"])
+
+    if filas_validas.empty:
+        return {
+            "total_municipios": 0,
+            "modelo_utilizado": obtener_modelo_seleccionado(),
+            "municipios": [],
+        }
+
+    agrupado = (
+        filas_validas
+        .groupby("cod_municipio")
+        .agg(
+            promedio_predicho=("prediccion", "mean"),
+            promedio_observado=(VARIABLE_OBJETIVO, "mean"),
+            total_diagnosticos=("prediccion", "count"),
+        )
+        .reset_index()
+    )
+
+    municipios = []
+
+    for _, fila in agrupado.iterrows():
+        municipios.append({
+            "codigo_municipio": str(fila["cod_municipio"]),
+            "promedio_predicho": round(float(fila["promedio_predicho"]), 4),
+            "promedio_observado": round(float(fila["promedio_observado"]), 4),
+            "total_diagnosticos": int(fila["total_diagnosticos"]),
+        })
+
+    return {
+        "total_municipios": len(municipios),
+        "modelo_utilizado": obtener_modelo_seleccionado(),
+        "municipios": municipios,
+    }
+
+
+# ============================================================
+# 11. COMPARAR RESUMEN AGREGADO DE MUNICIPIOS
+# ============================================================
+
+def comparar_resumen_municipios(codigos):
+    """
+    Compara entre 2 y 10 municipios utilizando
+    los resúmenes agregados (promedio de todos
+    los diagnósticos por municipio).
+    """
+
+    if not isinstance(codigos, (list, tuple)):
+        raise ValueError(
+            "Debes proporcionar una lista de municipios."
+        )
+
+    codigos = list(dict.fromkeys(
+        str(codigo).strip().zfill(5)
+        for codigo in codigos
+    ))
+
+    if len(codigos) < 2 or len(codigos) > 10:
+        raise ValueError(
+            "Debes seleccionar entre 2 y 10 municipios."
+        )
+
+    dataset = generar_predicciones()
+
+    comparacion = []
+
+    for codigo in codigos:
+
+        municipio = dataset[
+            dataset["cod_municipio"] == codigo
+        ].copy()
+
+        if municipio.empty:
+            comparacion.append({
+                "codigo_municipio": codigo,
+                "encontrado": False,
+                "promedio_predicho": None,
+                "promedio_observado": None,
+                "total_diagnosticos": 0,
+            })
+            continue
+
+        filas_validas = municipio.dropna(subset=["prediccion"])
+
+        if filas_validas.empty:
+            comparacion.append({
+                "codigo_municipio": codigo,
+                "encontrado": True,
+                "promedio_predicho": None,
+                "promedio_observado": None,
+                "total_diagnosticos": 0,
+            })
+            continue
+
+        promedio_predicho = filas_validas["prediccion"].mean()
+        promedio_observado = filas_validas[VARIABLE_OBJETIVO].mean()
+        total_diagnosticos = len(filas_validas)
+
+        comparacion.append({
+            "codigo_municipio": codigo,
+            "encontrado": True,
+            "promedio_predicho": round(float(promedio_predicho), 4),
+            "promedio_observado": round(float(promedio_observado), 4),
+            "total_diagnosticos": total_diagnosticos,
+        })
+
+    return {
+        "modelo_utilizado": obtener_modelo_seleccionado(),
+        "total_municipios": len(comparacion),
+        "municipios": comparacion,
+    }
