@@ -3,6 +3,16 @@
   "realm": "mortalidad",
   "enabled": true,
   "sslRequired": "external",
+  "roles": {
+    "realm": [
+      {
+        "name": "realm-admin",
+        "description": "Rol de administrador del realm",
+        "composite": false,
+        "clientRole": false
+      }
+    ]
+  },
   "users": [
     {
       "username": "admin",
@@ -14,7 +24,7 @@
           "temporary": false
         }
       ],
-      "roles": ["realm-admin"]
+      "realmRoles": ["realm-admin"]
     }
   ],
   "clients": [
