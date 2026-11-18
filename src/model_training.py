@@ -29,6 +29,139 @@ def calcular_metricas(y_real, y_predicho):
     }
 
 
+def calcular_metricas_clasificacion(y_real, y_predicho, umbral=50.0):
+    """
+    Convierte predicciones continuas en clases binarias usando un umbral
+    y calcula metricas de clasificacion.
+    
+    >= umbral = "alto riesgo" (1)
+    < umbral = "bajo riesgo" (0)
+    """
+    y_real_binario = (y_real >= umbral).astype(int)
+    y_pred_binario = (y_predicho >= umbral).astype(int)
+
+    # Calcular componentes de la matriz de confusion
+    tp = int(((y_pred_binario == 1) & (y_real_binario == 1)).sum())
+    tn = int(((y_pred_binario == 0) & (y_real_binario == 0)).sum())
+    fp = int(((y_pred_binario == 1) & (y_real_binario == 0)).sum())
+    fn = int(((y_pred_binario == 0) & (y_real_binario == 1)).sum())
+
+    total = tp + tn + fp + fn
+    accuracy = round((tp + tn) / total, 4) if total > 0 else 0.0
+
+    # Precision con manejo de division por cero
+    precision = round(tp / (tp + fp), 4) if (tp + fp) > 0 else 0.0
+    # Recall con manejo de division por cero
+    recall = round(tp / (tp + fn), 4) if (tp + fn) > 0 else 0.0
+    # F1-score con manejo de division por cero
+    f1_score = round(
+        2 * precision * recall / (precision + recall), 4
+    ) if (precision + recall) > 0 else 0.0
+
+    return {
+        "umbral": umbral,
+        "matriz_confusion": {
+            "TP": tp,
+            "TN": tn,
+            "FP": fp,
+            "FN": fn
+        },
+        "accuracy": accuracy,
+        "precision": precision,
+        "recall": recall,
+        "f1_score": f1_score
+    }
+
+
+def necesita_metricas_clasificacion(metricas_validacion):
+    """
+    Verifica si las metricas de validacion ya incluyen
+    metricas de clasificacion. Si no, hay que recalcularlas.
+    """
+    for nombre, metricas in metricas_validacion.items():
+        if "metricas_clasificacion" not in metricas:
+            return True
+    return False
+
+
+def recalcular_metricas_validacion(
+    modelos_guardados_dir,
+    datos_val
+):
+    """
+    Recarga los modelos .joblib ya entrenados y recalcula
+    todas las metricas (regresion y clasificacion) sobre
+    el conjunto de validacion.
+    
+    Permite actualizar metricas.json sin re-entrenar los modelos.
+    """
+    X_val, y_val = preparar_variables(datos_val)
+
+    if y_val.isna().any():
+        raise ValueError(
+            "La variable objetivo contiene valores faltantes."
+        )
+
+    resultados = {}
+    nombres_modelos = ["regresion_lineal", "random_forest"]
+
+    for nombre in nombres_modelos:
+        ruta_modelo = modelos_guardados_dir / f"{nombre}.joblib"
+
+        if not ruta_modelo.is_file():
+            raise FileNotFoundError(
+                f"No se encontró el modelo {nombre} en {ruta_modelo}."
+            )
+
+        modelo = joblib.load(ruta_modelo)
+        predicciones = modelo.predict(X_val)
+
+        metricas_regresion = calcular_metricas(
+            y_val,
+            predicciones
+        )
+        metricas_clasif = calcular_metricas_clasificacion(
+            y_val,
+            predicciones
+        )
+
+        resultados[nombre] = {
+            **metricas_regresion,
+            "metricas_clasificacion": metricas_clasif
+        }
+
+    return resultados, y_val
+
+
+def seleccionar_mejor_modelo(metricas_validacion, y_val):
+    """
+    Selecciona el mejor modelo usando un puntaje combinado de
+    50% RMSE normalizado + 50% (1 - F1-score).
+    
+    El modelo con el puntaje mas bajo gana.
+    """
+    rango_y = max(y_val) - min(y_val)
+    
+    mejor_nombre = None
+    mejor_puntaje = float('inf')
+    
+    for nombre, metricas in metricas_validacion.items():
+        rmse = metricas["RMSE"]
+        f1 = metricas["metricas_clasificacion"]["f1_score"]
+        
+        # Normalizar RMSE al rango [0, 1]
+        rmse_norm = rmse / rango_y if rango_y > 0 else 0.0
+        
+        # Puntaje combinado: 50% regresion + 50% clasificacion
+        puntaje = 0.5 * rmse_norm + 0.5 * (1 - f1)
+        
+        if puntaje < mejor_puntaje:
+            mejor_puntaje = puntaje
+            mejor_nombre = nombre
+    
+    return mejor_nombre
+
+
 def entrenar_modelos(datos_train, datos_val):
     """
     Entrena los dos modelos y evalua
@@ -57,14 +190,23 @@ def entrenar_modelos(datos_train, datos_val):
 
         predicciones = pipeline.predict(X_val)
 
-        resultados[nombre] = calcular_metricas(
+        metricas_regresion = calcular_metricas(
+            y_val,
+            predicciones
+        )
+        metricas_clasif = calcular_metricas_clasificacion(
             y_val,
             predicciones
         )
 
+        resultados[nombre] = {
+            **metricas_regresion,
+            "metricas_clasificacion": metricas_clasif
+        }
+
         modelos_entrenados[nombre] = pipeline
 
-    return resultados, modelos_entrenados
+    return resultados, modelos_entrenados, y_val
 
 # ==========================================
 # GUARDADO DE MODELOS ENTRENADOS
@@ -176,12 +318,19 @@ def evaluar_modelo_final(
 
     predicciones = modelo_entrenado.predict(X_test)
 
-    metricas = calcular_metricas(
+    metricas_regresion = calcular_metricas(
+        y_test,
+        predicciones
+    )
+    metricas_clasif = calcular_metricas_clasificacion(
         y_test,
         predicciones
     )
 
-    return metricas
+    return {
+        **metricas_regresion,
+        "metricas_clasificacion": metricas_clasif
+    }
 
 def guardar_evaluacion_final(
     modelo_seleccionado,
@@ -207,7 +356,7 @@ def guardar_evaluacion_final(
         "tipo_datos": "simulados",
         "variable_objetivo": "dane_pct_sin_asistencia",
         "modelo_seleccionado": modelo_seleccionado,
-        "criterio_seleccion": "Menor RMSE de validacion",
+        "criterio_seleccion": "Puntaje combinado: RMSE normalizado y F1-score",
         "fecha_evaluacion": datetime.now(
             timezone.utc
         ).isoformat(),

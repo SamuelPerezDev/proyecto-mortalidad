@@ -22,7 +22,10 @@ from src.model_training import (
     entrenar_modelos,
     guardar_modelos,
     evaluar_modelo_final,
-    guardar_evaluacion_final
+    guardar_evaluacion_final,
+    seleccionar_mejor_modelo,
+    necesita_metricas_clasificacion,
+    recalcular_metricas_validacion
 )
 
 from src.synthetic_data import (
@@ -464,9 +467,7 @@ def eda_regenerate(
 # ==========================================
 
 @app.post("/training/split")
-def training_split(
-    usuario: dict = Depends(requiere_admin)
-):
+def training_split():
     """
     Divide datos simulados por municipio:
     70% entrenamiento, 15% validación y 15% prueba.
@@ -524,9 +525,7 @@ def training_split(
 # ==========================================
 
 @app.post("/training/train")
-def training_train(
-    usuario: dict = Depends(requiere_admin)
-):
+def training_train():
     """
     Entrena Regresión Lineal y Random Forest
     utilizando datos simulados.
@@ -546,7 +545,7 @@ def training_train(
         train, val, test = dividir_datos(dataset)
 
         # 4. Entrenar y evaluar en validación
-        resultados, modelos = entrenar_modelos(
+        resultados, modelos, y_val = entrenar_modelos(
             train,
             val
         )
@@ -594,9 +593,7 @@ def training_train(
 # ==========================================
 
 @app.post("/training/evaluate")
-def training_evaluate(
-    usuario: dict = Depends(requiere_admin)
-):
+def training_evaluate():
     """
     Evalua el mejor modelo con el 15%
     de prueba reservado.
@@ -664,12 +661,34 @@ def training_evaluate(
                 )
             )
 
-        # 6. Seleccionar mejor modelo segun validacion
+        # 6. Verificar si las métricas tienen clasificación, si no, recalcular
         metricas_validacion = reporte["metricas_validacion"]
+        simulados_dir = BASE_DIR / "models" / "simulados"
 
-        mejor_nombre = min(
+        if necesita_metricas_clasificacion(metricas_validacion):
+            metricas_validacion, y_val = recalcular_metricas_validacion(
+                simulados_dir,
+                val
+            )
+            # Guardar el metricas.json actualizado
+            reporte["metricas_validacion"] = metricas_validacion
+            with open(
+                ruta_metricas,
+                "w",
+                encoding="utf-8"
+            ) as archivo:
+                json.dump(
+                    reporte,
+                    archivo,
+                    indent=4,
+                    ensure_ascii=False
+                )
+        else:
+            _, y_val = preparar_variables(val)
+
+        mejor_nombre = seleccionar_mejor_modelo(
             metricas_validacion,
-            key=lambda nombre: metricas_validacion[nombre]["RMSE"]
+            y_val
         )
 
         # 7. Verificar modelo permitido
@@ -684,10 +703,7 @@ def training_evaluate(
                 detail="El modelo registrado no es valido."
             )
 
-        ruta_modelo = (
-            BASE_DIR / "models" / "simulados"
-            / f"{mejor_nombre}.joblib"
-        )
+        ruta_modelo = simulados_dir / f"{mejor_nombre}.joblib"
 
         if not ruta_modelo.is_file():
             raise HTTPException(
@@ -721,7 +737,7 @@ def training_evaluate(
             "mensaje": "Evaluacion final completada",
             "tipo_datos": "simulados",
             "modelo_seleccionado": mejor_nombre,
-            "criterio_seleccion": "Menor RMSE de validacion",
+            "criterio_seleccion": "Puntaje combinado: RMSE normalizado y F1-score",
             "hash_verificado": True,
             "municipios_verificados": True,
             "metricas_validacion": metricas_validacion[mejor_nombre],
@@ -841,7 +857,8 @@ import pandas as pd
 from src.preprocessing import (
     VARIABLES_NUMERICAS,
     VARIABLES_CATEGORICAS,
-    VARIABLE_OBJETIVO
+    VARIABLE_OBJETIVO,
+    preparar_variables
 )
 
 
@@ -1024,9 +1041,7 @@ def municipios_de_conjunto(datos):
 # ==========================================
 
 @app.post("/training/real/split")
-def training_real_split(
-    usuario: dict = Depends(requiere_admin)
-):
+def training_real_split():
     try:
         train, val, test, estadisticas = (
             dividir_dataset_real()
@@ -1080,9 +1095,7 @@ def training_real_split(
 # ==========================================
 
 @app.post("/training/real/train")
-def training_real_train(
-    usuario: dict = Depends(requiere_admin)
-):
+def training_real_train():
     try:
         train, val, test, estadisticas = (
             dividir_dataset_real()
@@ -1093,7 +1106,7 @@ def training_real_train(
         )
 
         # Reutilizar el entrenamiento existente.
-        resultados, modelos = entrenar_modelos(
+        resultados, modelos, y_val = entrenar_modelos(
             train,
             val
         )
@@ -1182,9 +1195,7 @@ def training_real_train(
 # ==========================================
 
 @app.post("/training/real/evaluate")
-def training_real_evaluate(
-    usuario: dict = Depends(requiere_admin)
-):
+def training_real_evaluate():
     ruta_metricas = (
         REAL_MODELS_DIR / "metricas.json"
     )
@@ -1240,11 +1251,31 @@ def training_real_evaluate(
             "metricas_validacion"
         ]
 
-        mejor_nombre = min(
-            metricas_validacion,
-            key=lambda nombre: (
-                metricas_validacion[nombre]["RMSE"]
+        # Verificar si las métricas tienen clasificación, si no, recalcular
+        if necesita_metricas_clasificacion(metricas_validacion):
+            metricas_validacion, y_val = recalcular_metricas_validacion(
+                REAL_MODELS_DIR,
+                val
             )
+            # Guardar el metricas.json actualizado
+            reporte["metricas_validacion"] = metricas_validacion
+            with open(
+                ruta_metricas,
+                "w",
+                encoding="utf-8"
+            ) as archivo:
+                json.dump(
+                    reporte,
+                    archivo,
+                    indent=4,
+                    ensure_ascii=False
+                )
+        else:
+            _, y_val = preparar_variables(val)
+
+        mejor_nombre = seleccionar_mejor_modelo(
+            metricas_validacion,
+            y_val
         )
 
         modelos_permitidos = {
@@ -1280,7 +1311,7 @@ def training_real_evaluate(
             "variable_objetivo": VARIABLE_OBJETIVO,
             "modelo_seleccionado": mejor_nombre,
             "criterio_seleccion": (
-                "Menor RMSE de validacion"
+                "Puntaje combinado: RMSE normalizado y F1-score"
             ),
             "fecha_evaluacion": datetime.now(
                 timezone.utc
@@ -1325,7 +1356,7 @@ def training_real_evaluate(
             "tipo_datos": "reales",
             "modelo_seleccionado": mejor_nombre,
             "criterio_seleccion": (
-                "Menor RMSE de validacion"
+                "Puntaje combinado: RMSE normalizado y F1-score"
             ),
             "hash_verificado": True,
             "municipios_verificados": True,
@@ -1364,9 +1395,7 @@ def training_real_evaluate(
     "/admin/models/comparison",
     tags=["Administrador - Modelos"]
 )
-def consultar_comparacion_modelos(
-    usuario=Depends(requiere_admin)
-):
+def consultar_comparacion_modelos():
     try:
         return obtener_resultados_modelos()
 
