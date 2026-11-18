@@ -41,6 +41,31 @@ Se consideran inicialmente dos enfoques para una posible tarea de clasificación
 
 Estos modelos son candidatos preliminares. Su implementación y evaluación dependerán de que se disponga de una variable objetivo válida y de datos apropiados para el problema definido.
 
+## Autenticación — Keycloak
+
+El proyecto utiliza Keycloak para la autenticación. La configuración se encuentra en `src/keycloak_config.py`:
+
+- **URL:** `http://localhost:8080`
+- **Realm:** `mortalidad`
+- **Cliente:** `mortalidad-api`
+
+### Levantar Keycloak localmente
+
+Se incluye un archivo `docker-compose.yml` que levanta Keycloak con el realm y el cliente configurados automáticamente.
+
+```bash
+docker compose up -d
+```
+
+Keycloak estará disponible en `http://localhost:8080`.
+
+**Credenciales de administración:**
+
+- **Usuario:** `admin`
+- **Contraseña:** `admin`
+
+El realm `mortalidad` y el cliente `mortalidad-api` se importan automáticamente desde `keycloak/realm-mortalidad.json`.
+
 ## Estructura del repositorio
 
 ```text
@@ -49,13 +74,19 @@ proyecto-mortalidad/
 │   ├── raw/
 │   ├── interim/
 │   └── processed/
-└── notebooks/
+├── keycloak/
+│   └── realm-mortalidad.json
+├── notebooks/
+└── src/
+    └── keycloak_config.py
 ```
 
 - `data/raw/`: ubicación local de los datos originales.
 - `data/interim/`: datos generados durante etapas intermedias.
 - `data/processed/`: datos preparados para análisis o modelado.
+- `keycloak/`: configuración de Keycloak para desarrollo local.
 - `notebooks/`: análisis exploratorios y experimentos desarrollados durante el proyecto.
+- `src/keycloak_config.py`: configuración del cliente de Keycloak.
 
 La estructura se ampliará progresivamente a medida que se incorporen los módulos de procesamiento, entrenamiento, evaluación y despliegue.
 
