@@ -15,9 +15,9 @@ import tempfile
 from src.model_results import obtener_resultados_modelos
 import json
 import joblib
-
+from src.population_analysis import router as population_analysis_router
 from src.training import dividir_datos
-
+from src.population import router as population_router
 from src.model_training import (
     entrenar_modelos,
     guardar_modelos,
@@ -81,6 +81,9 @@ app = FastAPI(
     }
 )
 
+app.include_router(population_router)
+
+app.include_router(population_analysis_router)
 # ==========================================
 # CONFIGURACIÓN DE CORS
 # ==========================================
