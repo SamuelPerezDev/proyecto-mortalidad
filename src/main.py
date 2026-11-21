@@ -348,45 +348,54 @@ def eda_dane(
     usuario: dict = Depends(verificar_token)
 ):
     """Devuelve las estadísticas EDA de DANE."""
+    try:
+        stats = cargar_eda_stats("DANE")
 
-    stats = cargar_eda_stats("DANE")
-
-    if stats is None:
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "Las estadísticas EDA de DANE "
-                "no están disponibles."
+        if stats is None:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "Las estadísticas EDA de DANE "
+                    "no están disponibles."
+                )
             )
-        )
 
-    archivo_raw = encontrar_archivo_raw(DANE_RAW_PATTERN)
+        archivo_raw = encontrar_archivo_raw(DANE_RAW_PATTERN)
 
-    if archivo_raw is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No se encontró el archivo RAW de DANE."
-        )
-
-    from src.eda import obtener_archivo_hash
-
-    hash_actual = obtener_archivo_hash(archivo_raw)
-    hash_guardado = stats.get("archivo_hash")
-
-    if hash_actual != hash_guardado:
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "Las estadísticas EDA de DANE están "
-                "desactualizadas. Use POST /eda/regenerate."
+        if archivo_raw is None:
+            raise HTTPException(
+                status_code=404,
+                detail="No se encontró el archivo RAW de DANE."
             )
-        )
 
-    return {
-        k: v
-        for k, v in stats.items()
-        if k not in ("archivo_hash", "archivo_nombre")
-    }
+        from src.eda import obtener_archivo_hash
+
+        hash_actual = obtener_archivo_hash(archivo_raw)
+        hash_guardado = stats.get("archivo_hash")
+
+        if hash_actual != hash_guardado:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "Las estadísticas EDA de DANE están "
+                    "desactualizadas. Use POST /eda/regenerate."
+                )
+            )
+
+        return {
+            k: v
+            for k, v in stats.items()
+            if k not in ("archivo_hash", "archivo_nombre")
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener las estadísticas EDA de DANE: {error}"
+        )
 
 
 @app.get("/eda/rips")
@@ -394,45 +403,54 @@ def eda_rips(
     usuario: dict = Depends(verificar_token)
 ):
     """Devuelve las estadísticas EDA de RIPS."""
+    try:
+        stats = cargar_eda_stats("RIPS")
 
-    stats = cargar_eda_stats("RIPS")
-
-    if stats is None:
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "Las estadísticas EDA de RIPS "
-                "no están disponibles."
+        if stats is None:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "Las estadísticas EDA de RIPS "
+                    "no están disponibles."
+                )
             )
-        )
 
-    archivo_raw = encontrar_archivo_raw(RIPS_RAW_PATTERN)
+        archivo_raw = encontrar_archivo_raw(RIPS_RAW_PATTERN)
 
-    if archivo_raw is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No se encontró el archivo RAW de RIPS."
-        )
-
-    from src.eda import obtener_archivo_hash
-
-    hash_actual = obtener_archivo_hash(archivo_raw)
-    hash_guardado = stats.get("archivo_hash")
-
-    if hash_actual != hash_guardado:
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "Las estadísticas EDA de RIPS están "
-                "desactualizadas. Use POST /eda/regenerate."
+        if archivo_raw is None:
+            raise HTTPException(
+                status_code=404,
+                detail="No se encontró el archivo RAW de RIPS."
             )
-        )
 
-    return {
-        k: v
-        for k, v in stats.items()
-        if k not in ("archivo_hash", "archivo_nombre")
-    }
+        from src.eda import obtener_archivo_hash
+
+        hash_actual = obtener_archivo_hash(archivo_raw)
+        hash_guardado = stats.get("archivo_hash")
+
+        if hash_actual != hash_guardado:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "Las estadísticas EDA de RIPS están "
+                    "desactualizadas. Use POST /eda/regenerate."
+                )
+            )
+
+        return {
+            k: v
+            for k, v in stats.items()
+            if k not in ("archivo_hash", "archivo_nombre")
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener las estadísticas EDA de RIPS: {error}"
+        )
 
 
 @app.post("/eda/regenerate")
@@ -1421,7 +1439,20 @@ def consultar_comparacion_modelos():
     tags=["Predicciones públicas"]
 )
 def obtener_municipios():
-    return listar_municipios()
+    try:
+        return listar_municipios()
+
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Primero debes entrenar y evaluar los modelos."
+        )
+
+    except (ValueError, KeyError) as error:
+        raise HTTPException(
+            status_code=409,
+            detail=str(error)
+        )
 
 
 @app.get(
@@ -1429,8 +1460,20 @@ def obtener_municipios():
     tags=["Predicciones públicas"]
 )
 def obtener_prediccion_municipio(codigo: str):
+    try:
+        resultado = consultar_municipio(codigo)
 
-    resultado = consultar_municipio(codigo)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Primero debes entrenar y evaluar los modelos."
+        )
+
+    except (ValueError, KeyError) as error:
+        raise HTTPException(
+            status_code=409,
+            detail=str(error)
+        )
 
     if not resultado["encontrado"]:
         raise HTTPException(
@@ -1472,8 +1515,20 @@ def obtener_comparacion_municipios(codigos: str):
     tags=["Predicciones públicas"]
 )
 def obtener_resumen_municipio(codigo: str):
+    try:
+        resultado = resumen_municipio(codigo)
 
-    resultado = resumen_municipio(codigo)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Primero debes entrenar y evaluar los modelos."
+        )
+
+    except (ValueError, KeyError) as error:
+        raise HTTPException(
+            status_code=409,
+            detail=str(error)
+        )
 
     if not resultado["encontrado"]:
         raise HTTPException(
@@ -1489,7 +1544,20 @@ def obtener_resumen_municipio(codigo: str):
     tags=["Predicciones públicas"]
 )
 def obtener_resumen_todos_municipios():
-    return resumen_todos_municipios()
+    try:
+        return resumen_todos_municipios()
+
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Primero debes entrenar y evaluar los modelos."
+        )
+
+    except (ValueError, KeyError) as error:
+        raise HTTPException(
+            status_code=409,
+            detail=str(error)
+        )
 
 
 @app.get(
