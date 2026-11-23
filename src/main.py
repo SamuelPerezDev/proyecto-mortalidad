@@ -488,7 +488,9 @@ def eda_regenerate(
 # ==========================================
 
 @app.post("/training/split")
-def training_split():
+def training_split(
+    usuario: dict = Depends(requiere_admin)
+):
     """
     Divide datos simulados por municipio:
     70% entrenamiento, 15% validación y 15% prueba.
@@ -546,7 +548,9 @@ def training_split():
 # ==========================================
 
 @app.post("/training/train")
-def training_train():
+def training_train(
+    usuario: dict = Depends(requiere_admin)
+):
     """
     Entrena Regresión Lineal y Random Forest
     utilizando datos simulados.
@@ -614,7 +618,9 @@ def training_train():
 # ==========================================
 
 @app.post("/training/evaluate")
-def training_evaluate():
+def training_evaluate(
+    usuario: dict = Depends(requiere_admin)
+):
     """
     Evalua el mejor modelo con el 15%
     de prueba reservado.
@@ -1062,7 +1068,9 @@ def municipios_de_conjunto(datos):
 # ==========================================
 
 @app.post("/training/real/split")
-def training_real_split():
+def training_real_split(
+    usuario: dict = Depends(requiere_admin)
+):
     try:
         train, val, test, estadisticas = (
             dividir_dataset_real()
@@ -1116,7 +1124,9 @@ def training_real_split():
 # ==========================================
 
 @app.post("/training/real/train")
-def training_real_train():
+def training_real_train(
+    usuario: dict = Depends(requiere_admin)
+):
     try:
         train, val, test, estadisticas = (
             dividir_dataset_real()
@@ -1216,7 +1226,9 @@ def training_real_train():
 # ==========================================
 
 @app.post("/training/real/evaluate")
-def training_real_evaluate():
+def training_real_evaluate(
+    usuario: dict = Depends(requiere_admin)
+):
     ruta_metricas = (
         REAL_MODELS_DIR / "metricas.json"
     )
@@ -1416,7 +1428,9 @@ def training_real_evaluate():
     "/admin/models/comparison",
     tags=["Administrador - Modelos"]
 )
-def consultar_comparacion_modelos():
+def consultar_comparacion_modelos(
+    usuario: dict = Depends(requiere_admin)
+):
     try:
         return obtener_resultados_modelos()
 

@@ -2,8 +2,9 @@
 from pathlib import Path
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from src.auth import verificar_token
 from src.eda import (
     leer_csv_raw,
     encontrar_archivo_raw,
@@ -136,7 +137,9 @@ def obtener_analisis_poblacional():
 
 
 @router.get("/municipios")
-def listar_analisis_poblacional():
+def listar_analisis_poblacional(
+    usuario: dict = Depends(verificar_token)
+):
     try:
         datos, estadisticas = obtener_analisis_poblacional()
 
@@ -157,7 +160,10 @@ def listar_analisis_poblacional():
 
 
 @router.get("/municipios/{codigo}")
-def consultar_analisis_municipio(codigo: str):
+def consultar_analisis_municipio(
+    codigo: str,
+    usuario: dict = Depends(verificar_token)
+):
     try:
         datos, estadisticas = obtener_analisis_poblacional()
 
@@ -191,7 +197,10 @@ def consultar_analisis_municipio(codigo: str):
 # ==========================================
 
 @router.get("/comparar")
-def comparar_poblacion_municipios(codigos: str):
+def comparar_poblacion_municipios(
+    codigos: str,
+    usuario: dict = Depends(verificar_token)
+):
     """
     Compara municipios usando población de 2021
     y defunciones observadas del DANE.

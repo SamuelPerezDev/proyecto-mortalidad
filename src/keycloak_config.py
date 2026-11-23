@@ -23,9 +23,10 @@ ISSUER = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}"
 # ==========================================
 # Cuando AUTH_ENABLED=false, los endpoints protegidos
 # funcionan sin validar token Keycloak.
-# Por defecto: true (autenticación activada).
-# Solo desactivar en entorno de desarrollo/pruebas.
-AUTH_ENABLED = os.environ.get("AUTH_ENABLED", "true").lower() in (
+# Por defecto: false (autenticación desactivada) para
+# facilitar pruebas locales. En producción, establece
+# AUTH_ENABLED=true mediante variable de entorno.
+AUTH_ENABLED = os.environ.get("AUTH_ENABLED", "false").lower() in (
     "true",
     "1",
     "yes"

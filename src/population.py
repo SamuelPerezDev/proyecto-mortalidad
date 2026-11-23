@@ -7,6 +7,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
+from src.auth import requiere_admin
+
 
 router = APIRouter(prefix="/datasets", tags=["Datasets"])
 
@@ -106,7 +108,7 @@ def validar_poblacion(ruta):
 @router.post("/population/upload")
 async def cargar_poblacion(
     file: UploadFile = File(...),
-    
+    usuario: dict = Depends(requiere_admin)
 ):
     """
     Carga población municipal de 2021.
